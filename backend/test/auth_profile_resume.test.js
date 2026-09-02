@@ -1,7 +1,6 @@
 import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import app from '../src/app.js';
 
 let mongoServer;
@@ -10,13 +9,19 @@ let baseUrl;
 
 before(async () => {
   try {
+    const { MongoMemoryServer } = await import('mongodb-memory-server');
     mongoServer = await MongoMemoryServer.create();
     const uri = mongoServer.getUri();
     await mongoose.connect(uri);
   } catch (err) {
-    // If memory server fails to download binary, fallback to local test DB
-    const fallbackUri = 'mongodb://localhost:27017/interview_ai_test';
+    // If memory server is unavailable, connect to test database URI
+    const fallbackUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/interview_ai_test';
     await mongoose.connect(fallbackUri);
+  }
+
+  // Clear test data to ensure test idempotency
+  if (mongoose.connection.db) {
+    await mongoose.connection.db.dropDatabase();
   }
 
   server = app.listen(0);
@@ -196,6 +201,55 @@ Cloud Microservices Architecture
     assert.strictEqual(body.data.isDefault, true);
   });
 
+  test('8b. POST /api/v1/resumes/upload uploads and parses a real PDF resume', async () => {
+    // Valid PDF byte stream containing technical skills text
+    const samplePdfRaw = `%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj
+3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>/Contents 4 0 R>>endobj
+4 0 obj<</Length 120>>stream
+BT
+/F1 12 Tf
+100 700 Td
+(Jane Doe Software Engineer Skills: Python, Docker, PostgreSQL, React, TypeScript) Tj
+ET
+endstream
+endobj
+xref
+0 5
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000216 00000 n
+trailer<</Size 5/Root 1 0 R>>
+startxref
+386
+%%EOF`;
+
+    const pdfBuffer = Buffer.from(samplePdfRaw, 'utf-8');
+    const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+    const formData = new FormData();
+    formData.append('resume', blob, 'resume_sample.pdf');
+
+    const res = await fetch(`${baseUrl}/resumes/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken}`
+      },
+      body: formData
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.data.originalFilename, 'resume_sample.pdf');
+    assert.strictEqual(body.data.mimeType, 'application/pdf');
+    assert.ok(body.data.parsedData.skills.includes('Python'), 'Parsed skills should include Python');
+    assert.ok(body.data.parsedData.skills.includes('Docker'), 'Parsed skills should include Docker');
+    assert.ok(body.data.parsedData.skills.includes('PostgreSQL'), 'Parsed skills should include PostgreSQL');
+  });
+
   test('9. GET /api/v1/resumes lists uploaded resumes for authenticated user', async () => {
     const res = await fetch(`${baseUrl}/resumes`, {
       headers: { Authorization: `Bearer ${authToken}` }
@@ -204,7 +258,7 @@ Cloud Microservices Architecture
     const body = await res.json();
     assert.strictEqual(res.status, 200);
     assert.strictEqual(body.success, true);
-    assert.strictEqual(body.data.length, 1);
+    assert.strictEqual(body.data.length, 2);
   });
 
   test('10. POST /api/v1/auth/refresh-token refreshes access token', async () => {

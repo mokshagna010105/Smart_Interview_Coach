@@ -1,13 +1,35 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext.jsx';
-import { Bot, FileText, User, Play, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import apiClient from '../../api/apiClient.js';
+import {
+  Bot,
+  FileText,
+  User,
+  Play,
+  Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  Clock,
+  History,
+  PlayCircle
+} from 'lucide-react';
 
 export const DashboardPage = () => {
   const { user, profile } = useAuth();
 
   const primarySkills = profile?.primarySkills || ['JavaScript', 'React', 'Node.js'];
   const targetCompanies = profile?.targetCompanies || ['Google', 'Amazon', 'Microsoft'];
+
+  // Fetch recent interviews
+  const { data: interviews = [] } = useQuery({
+    queryKey: ['userRecentInterviews'],
+    queryFn: async () => {
+      const res = await apiClient.get('/interviews?limit=3');
+      return res.data || [];
+    }
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -17,7 +39,7 @@ export const DashboardPage = () => {
           <div className="space-y-2">
             <div className="inline-flex items-center space-x-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Mock Interview Training Center</span>
+              <span>AI Mock Interview Training Ground</span>
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
               Welcome, {profile?.fullName || user?.email?.split('@')[0]}!
@@ -29,16 +51,16 @@ export const DashboardPage = () => {
 
           <div className="flex flex-wrap gap-3">
             <Link
-              to="/resume"
-              className="inline-flex items-center rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-brand-900 shadow hover:bg-brand-50 transition"
+              to="/interview/setup"
+              className="inline-flex items-center rounded-xl bg-white px-5 py-3 text-xs font-bold text-brand-900 shadow-md hover:bg-brand-50 transition"
             >
-              <FileText className="mr-2 h-4 w-4 text-brand-600" /> Manage Resume
+              <Play className="mr-2 h-4 w-4 fill-current text-brand-600" /> Start Mock Interview
             </Link>
             <Link
-              to="/profile"
-              className="inline-flex items-center rounded-xl bg-brand-800/60 border border-white/20 px-5 py-2.5 text-xs font-bold text-white hover:bg-brand-800 transition"
+              to="/resume"
+              className="inline-flex items-center rounded-xl bg-brand-800/60 border border-white/20 px-4 py-3 text-xs font-bold text-white hover:bg-brand-800 transition"
             >
-              <User className="mr-2 h-4 w-4" /> Edit Profile
+              <FileText className="mr-2 h-4 w-4" /> Manage Resume
             </Link>
           </div>
         </div>
@@ -47,19 +69,19 @@ export const DashboardPage = () => {
       {/* Quick Status Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mocks Completed</span>
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mocks Conducted</span>
           <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-            {profile?.interviewStats?.totalMocksCompleted || 0}
+            {interviews.length}
           </p>
-          <span className="mt-1 block text-xs text-slate-500">Practice sessions</span>
+          <span className="mt-1 block text-xs text-slate-500">Practice sessions created</span>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Average Score</span>
-          <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-            {profile?.interviewStats?.averageScore ? `${profile.interviewStats.averageScore}%` : 'N/A'}
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Target Level</span>
+          <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">
+            {profile?.experienceLevel || 'INTERMEDIATE'}
           </p>
-          <span className="mt-1 block text-xs text-slate-500">Across completed mocks</span>
+          <span className="mt-1 block text-xs text-slate-500">Profile difficulty</span>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -71,13 +93,57 @@ export const DashboardPage = () => {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account Status</span>
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account Tier</span>
           <div className="mt-2 flex items-center space-x-1.5 text-emerald-600 font-bold text-base">
             <CheckCircle2 className="h-5 w-5" />
-            <span>Active (Free Tier)</span>
+            <span>Active (Free)</span>
           </div>
           <span className="mt-1 block text-xs text-slate-500">Role: {user?.role}</span>
         </div>
+      </div>
+
+      {/* Recent Interviews Section */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center">
+            <History className="mr-2 h-4 w-4 text-brand-600" /> Recent Mock Interviews
+          </h2>
+          <Link to="/interview/history" className="text-xs font-bold text-brand-600 hover:text-brand-500">
+            View All History &rarr;
+          </Link>
+        </div>
+
+        {interviews.length === 0 ? (
+          <div className="text-center py-8 text-slate-400 text-xs">
+            No mock interviews conducted yet. Click "Start Mock Interview" to launch your first session.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {interviews.map((item) => (
+              <Link
+                key={item._id}
+                to={`/interview/room/${item._id}`}
+                className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 hover:border-brand-500 hover:bg-brand-50/20 dark:border-slate-800 dark:bg-slate-950 transition space-y-2 block"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase rounded-md bg-brand-50 px-2 py-0.5 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                    {item.type}
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {item.status}
+                  </span>
+                </div>
+                <h3 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  {item.title}
+                </h3>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <span>{item.questionCount} Questions</span>
+                  <span>{item.timeLimitMinutes} mins</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Target Skills & Companies Grid */}

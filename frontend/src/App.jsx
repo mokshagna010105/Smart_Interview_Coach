@@ -13,6 +13,9 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage.jsx';
 import DashboardPage from './pages/dashboard/DashboardPage.jsx';
 import ProfilePage from './pages/profile/ProfilePage.jsx';
 import ResumePage from './pages/resume/ResumePage.jsx';
+import InterviewSetupPage from './pages/interview/InterviewSetupPage.jsx';
+import InterviewRoomPage from './pages/interview/InterviewRoomPage.jsx';
+import InterviewHistoryPage from './pages/interview/InterviewHistoryPage.jsx';
 
 export const App = () => {
   return (
@@ -49,6 +52,30 @@ export const App = () => {
               element={
                 <ProtectedRoute>
                   <ResumePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/interview/setup"
+              element={
+                <ProtectedRoute>
+                  <InterviewSetupPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/interview/room/:interviewId"
+              element={
+                <ProtectedRoute>
+                  <InterviewRoomPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/interview/history"
+              element={
+                <ProtectedRoute>
+                  <InterviewHistoryPage />
                 </ProtectedRoute>
               }
             />

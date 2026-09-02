@@ -1,6 +1,8 @@
+import http from 'http';
 import app from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
+import { initSocketServer } from './websocket/socketServer.js';
 import { logger } from './utils/logger.js';
 
 const PORT = env.PORT || 5000;
@@ -10,8 +12,11 @@ const startServer = async () => {
     // 1. Connect to MongoDB
     await connectDatabase();
 
-    // 2. Start HTTP Listener
-    const server = app.listen(PORT, () => {
+    // 2. Create HTTP & WebSocket Server
+    const httpServer = http.createServer(app);
+    const io = initSocketServer(httpServer);
+
+    httpServer.listen(PORT, () => {
       logger.info(`🚀 InterviewAI Backend Server running on http://localhost:${PORT}`);
       logger.info(`📡 Environment: ${env.NODE_ENV}`);
       logger.info(`🩺 Health Check: http://localhost:${PORT}/api/v1/health`);
@@ -20,9 +25,10 @@ const startServer = async () => {
     // 3. Graceful Shutdown
     const handleGracefulShutdown = async (signal) => {
       logger.info(`Received ${signal}. Shutting down gracefully...`);
-      server.close(async () => {
+      io.close();
+      httpServer.close(async () => {
         await disconnectDatabase();
-        logger.info('HTTP server and Database connections closed successfully.');
+        logger.info('HTTP server, WebSockets, and Database connections closed successfully.');
         process.exit(0);
       });
     };
@@ -31,7 +37,6 @@ const startServer = async () => {
     process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
   } catch (err) {
     logger.error('Failed to start server:', err.message);
-    // In dev, keep server running or exit
   }
 };
 

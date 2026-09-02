@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
-import { Bot, Sparkles, LogOut, User, FileText, LayoutDashboard } from 'lucide-react';
+import { Bot, Sparkles, LogOut, User, FileText, LayoutDashboard, PlayCircle, History } from 'lucide-react';
 
 export const Header = () => {
   const { user, profile, isAuthenticated, logout } = useAuth();
@@ -15,6 +15,8 @@ export const Header = () => {
 
   const navLinks = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Mock Interview', path: '/interview/setup', icon: PlayCircle },
+    { name: 'History', path: '/interview/history', icon: History },
     { name: 'Resume', path: '/resume', icon: FileText },
     { name: 'Profile', path: '/profile', icon: User }
   ];

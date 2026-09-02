@@ -3,7 +3,8 @@ import mammoth from 'mammoth';
 import { logger } from '../utils/logger.js';
 
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+const pdfParseModule = require('pdf-parse');
+const { PDFParse } = pdfParseModule;
 
 // Comprehensive technical and soft skills dictionary
 const SKILL_DICTIONARY = [
@@ -28,8 +29,21 @@ class ResumeParserService {
   async extractRawText(buffer, mimeType) {
     try {
       if (mimeType === 'application/pdf') {
-        const data = await pdfParse(buffer);
-        return data.text || '';
+        if (PDFParse && typeof PDFParse === 'function') {
+          const parser = new PDFParse({ data: buffer });
+          try {
+            await parser.load();
+            const result = await parser.getText();
+            return result?.text || '';
+          } finally {
+            await parser.destroy();
+          }
+        } else if (typeof pdfParseModule === 'function') {
+          const data = await pdfParseModule(buffer);
+          return data?.text || '';
+        } else {
+          throw new Error('PDF parsing module is not available');
+        }
       } else if (
         mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         mimeType === 'application/msword'
@@ -58,7 +72,6 @@ class ResumeParserService {
     // 1. Extract Skills via Dictionary Matching (Case-insensitive with word boundary)
     const detectedSkills = new Set();
     for (const skill of SKILL_DICTIONARY) {
-      // Escape special regex chars like C++, Next.js, Node.js
       const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(?:^|[\\s,;|/•])${escaped}(?:[\\s,;|/•]|$)`, 'i');
       if (regex.test(cleanText)) {
