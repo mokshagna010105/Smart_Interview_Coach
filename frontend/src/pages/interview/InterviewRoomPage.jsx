@@ -296,10 +296,16 @@ export const InterviewRoomPage = () => {
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
             <Link
-              to="/interview/setup"
+              to={`/interview/report/${interview._id}`}
               className="inline-flex items-center rounded-xl bg-brand-600 px-6 py-3 text-xs font-bold text-white shadow-md shadow-brand-500/25 hover:bg-brand-700 transition"
             >
-              <Sparkles className="mr-2 h-4 w-4" /> Start Another Mock
+              <Award className="mr-2 h-4 w-4" /> View AI Performance Report
+            </Link>
+            <Link
+              to="/interview/setup"
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-6 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition"
+            >
+              <Sparkles className="mr-2 h-4 w-4 text-brand-600" /> Start Another Mock
             </Link>
             <Link
               to="/dashboard"

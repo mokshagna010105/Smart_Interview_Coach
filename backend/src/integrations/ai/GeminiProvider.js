@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import AIProvider from './AIProvider.js';
 import DeterministicQuestionGenerator from './DeterministicQuestionGenerator.js';
+import DeterministicAnswerEvaluator from './DeterministicAnswerEvaluator.js';
+import { detectFillerWords } from '../../utils/fillerWordDetector.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
@@ -13,6 +15,23 @@ const questionOutputSchema = z.array(
     rubricGuide: z.string().default('')
   })
 );
+
+const answerEvaluationOutputSchema = z.object({
+  overallScore: z.coerce.number().min(0).max(100),
+  scores: z.object({
+    relevance: z.coerce.number().min(0).max(100).default(70),
+    correctness: z.coerce.number().min(0).max(100).default(70),
+    completeness: z.coerce.number().min(0).max(100).default(70),
+    communication: z.coerce.number().min(0).max(100).default(70),
+    clarity: z.coerce.number().min(0).max(100).default(70)
+  }),
+  strengths: z.array(z.string()).default([]),
+  weaknesses: z.array(z.string()).default([]),
+  feedback: z.array(z.string()).default([]),
+  idealAnswer: z.string().default(''),
+  grammarIssues: z.array(z.string()).default([]),
+  vocabularySuggestions: z.array(z.string()).default([])
+});
 
 export class GeminiProvider extends AIProvider {
   constructor() {
@@ -87,11 +106,9 @@ You MUST return a pure JSON array with no markdown backticks, matching this exac
         throw new Error('Empty response from Gemini API');
       }
 
-      // Parse JSON from text
       const cleanedJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanedJson);
 
-      // Validate schema with Zod
       const validationResult = questionOutputSchema.safeParse(parsed);
       if (!validationResult.success) {
         logger.warn('Gemini response did not match expected schema. Falling back to deterministic generator.');
@@ -103,6 +120,111 @@ You MUST return a pure JSON array with no markdown backticks, matching this exac
     } catch (error) {
       logger.warn(`Gemini generation encountered an exception (${error.message}). Gracefully using deterministic generator.`);
       return DeterministicQuestionGenerator.generate(config);
+    }
+  }
+
+  /**
+   * Evaluate a candidate answer and return detailed scoring, rubrics, and ideal answer
+   * @param {object} params
+   */
+  async evaluateAnswer(params) {
+    const fillerAnalysis = detectFillerWords(params.transcriptText);
+
+    if (!this.apiKey) {
+      logger.info('ℹ️ GEMINI_API_KEY is not configured in .env. Using rule-based deterministic answer evaluator.');
+      return DeterministicAnswerEvaluator.evaluate(params);
+    }
+
+    try {
+      const prompt = `You are an expert Interview Assessor evaluating a candidate's answer.
+Evaluate the following interview response with strict accuracy, providing actionable feedback.
+
+Interview Details:
+- Type: ${params.interviewType || 'TECHNICAL'}
+- Difficulty: ${params.difficulty || 'INTERMEDIATE'}
+- Target Role: ${params.targetRole || 'Software Engineer'}
+- Target Company: ${params.targetCompany || 'Generic'}
+
+Question:
+"${params.questionText}"
+
+Expected Key Concepts / Topics:
+${params.expectedTopics?.join(', ') || 'N/A'}
+
+Rubric Guide:
+${params.rubricGuide || 'Assess technical correctness, structure, and communication clarity.'}
+
+Candidate Answer:
+"${params.transcriptText || '[No answer provided]'}"
+
+Return a pure JSON object matching this schema:
+{
+  "overallScore": <number 0-100>,
+  "scores": {
+    "relevance": <number 0-100>,
+    "correctness": <number 0-100>,
+    "completeness": <number 0-100>,
+    "communication": <number 0-100>,
+    "clarity": <number 0-100>
+  },
+  "strengths": ["Clear strength 1", "Clear strength 2"],
+  "weaknesses": ["Area needing improvement 1"],
+  "feedback": ["Actionable suggestion 1", "Actionable suggestion 2"],
+  "idealAnswer": "A comprehensive sample answer demonstrating best practices",
+  "grammarIssues": ["Specific grammar correction if any"],
+  "vocabularySuggestions": ["Better phrasing suggestion"]
+}`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: prompt }]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: 'application/json'
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.warn(`Gemini evaluation returned status ${response.status}: ${errorText}. Falling back to deterministic evaluator.`);
+        return DeterministicAnswerEvaluator.evaluate(params);
+      }
+
+      const responseJson = await response.json();
+      const rawText = responseJson.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!rawText) {
+        throw new Error('Empty evaluation response from Gemini');
+      }
+
+      const cleanedJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanedJson);
+
+      const validationResult = answerEvaluationOutputSchema.safeParse(parsed);
+      if (!validationResult.success) {
+        logger.warn('Gemini evaluation response did not match schema. Falling back to deterministic evaluator.');
+        return DeterministicAnswerEvaluator.evaluate(params);
+      }
+
+      return {
+        evaluator: 'gemini',
+        ...validationResult.data,
+        fillerWordAnalysis: fillerAnalysis
+      };
+    } catch (error) {
+      logger.warn(`Gemini evaluation encountered an exception (${error.message}). Using deterministic evaluator.`);
+      return DeterministicAnswerEvaluator.evaluate(params);
     }
   }
 }

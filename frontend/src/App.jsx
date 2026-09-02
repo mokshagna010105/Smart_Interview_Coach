@@ -16,6 +16,8 @@ import ResumePage from './pages/resume/ResumePage.jsx';
 import InterviewSetupPage from './pages/interview/InterviewSetupPage.jsx';
 import InterviewRoomPage from './pages/interview/InterviewRoomPage.jsx';
 import InterviewHistoryPage from './pages/interview/InterviewHistoryPage.jsx';
+import InterviewReportPage from './pages/interview/InterviewReportPage.jsx';
+import AnalyticsPage from './pages/analytics/AnalyticsPage.jsx';
 
 export const App = () => {
   return (
@@ -72,10 +74,26 @@ export const App = () => {
               }
             />
             <Route
+              path="/interview/report/:interviewId"
+              element={
+                <ProtectedRoute>
+                  <InterviewReportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/interview/history"
               element={
                 <ProtectedRoute>
                   <InterviewHistoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <AnalyticsPage />
                 </ProtectedRoute>
               }
             />

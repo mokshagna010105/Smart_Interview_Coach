@@ -147,14 +147,24 @@ export const InterviewHistoryPage = () => {
                 </div>
               </div>
 
-              <div>
-                <Link
-                  to={`/interview/room/${item._id}`}
-                  className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-brand-950 dark:hover:text-brand-300 transition"
-                >
-                  {item.status === 'COMPLETED' ? 'View Room' : 'Enter Interview'}
-                  <ChevronRight className="ml-1.5 h-3.5 w-3.5" />
-                </Link>
+              <div className="flex items-center space-x-2">
+                {item.status === 'COMPLETED' ? (
+                  <Link
+                    to={`/interview/report/${item._id}`}
+                    className="inline-flex items-center rounded-xl bg-brand-50 border border-brand-200 px-4 py-2 text-xs font-bold text-brand-700 hover:bg-brand-100 dark:border-brand-900 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900 transition"
+                  >
+                    View Report
+                    <ChevronRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Link>
+                ) : (
+                  <Link
+                    to={`/interview/room/${item._id}`}
+                    className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition"
+                  >
+                    Enter Room
+                    <ChevronRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
             </div>
           ))}
