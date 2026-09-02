@@ -1,0 +1,237 @@
+import test, { before, after, describe } from 'node:test';
+import assert from 'node:assert';
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import app from '../src/app.js';
+
+let mongoServer;
+let server;
+let baseUrl;
+
+before(async () => {
+  try {
+    mongoServer = await MongoMemoryServer.create();
+    const uri = mongoServer.getUri();
+    await mongoose.connect(uri);
+  } catch (err) {
+    // If memory server fails to download binary, fallback to local test DB
+    const fallbackUri = 'mongodb://localhost:27017/interview_ai_test';
+    await mongoose.connect(fallbackUri);
+  }
+
+  server = app.listen(0);
+  const port = server.address().port;
+  baseUrl = `http://localhost:${port}/api/v1`;
+});
+
+after(async () => {
+  if (server) server.close();
+  await mongoose.disconnect();
+  if (mongoServer) await mongoServer.stop();
+});
+
+describe('Block 1: Authentication, Profile & Resume Integration Tests', () => {
+  let authToken = '';
+  let refreshToken = '';
+  let userId = '';
+
+  const testUser = {
+    fullName: 'Jane Doe',
+    email: 'jane.doe@example.com',
+    password: 'Password123'
+  };
+
+  test('1. POST /api/v1/auth/register registers user and returns access token', async () => {
+    const res = await fetch(`${baseUrl}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testUser)
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.data.user.email, testUser.email);
+    assert.ok(body.data.accessToken, 'Access token should be returned');
+    assert.ok(body.data.refreshToken, 'Refresh token should be returned');
+
+    authToken = body.data.accessToken;
+    refreshToken = body.data.refreshToken;
+    userId = body.data.user.id;
+  });
+
+  test('2. POST /api/v1/auth/register rejects duplicate email with 409 CONFLICT', async () => {
+    const res = await fetch(`${baseUrl}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testUser)
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 409);
+    assert.strictEqual(body.success, false);
+    assert.strictEqual(body.error.code, 'CONFLICT');
+  });
+
+  test('3. POST /api/v1/auth/login authenticates with correct credentials', async () => {
+    const res = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: testUser.email,
+        password: testUser.password
+      })
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(body.success, true);
+    assert.ok(body.data.accessToken);
+    authToken = body.data.accessToken;
+  });
+
+  test('4. POST /api/v1/auth/login rejects invalid password with 401', async () => {
+    const res = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: testUser.email,
+        password: 'WrongPassword99'
+      })
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 401);
+    assert.strictEqual(body.success, false);
+    assert.strictEqual(body.error.code, 'UNAUTHORIZED');
+  });
+
+  test('5. GET /api/v1/auth/me returns authenticated user identity', async () => {
+    const res = await fetch(`${baseUrl}/auth/me`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.data.user.email, testUser.email);
+    assert.strictEqual(body.data.profile.fullName, testUser.fullName);
+  });
+
+  test('6. GET /api/v1/profile returns user profile', async () => {
+    const res = await fetch(`${baseUrl}/profile`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.data.fullName, testUser.fullName);
+  });
+
+  test('7. PUT /api/v1/profile updates target role, skills, and companies', async () => {
+    const updateData = {
+      targetRole: 'Senior Cloud Architect',
+      experienceLevel: 'ADVANCED',
+      targetCompanies: ['Google', 'Stripe'],
+      primarySkills: ['Node.js', 'Kubernetes', 'AWS', 'Go']
+    };
+
+    const res = await fetch(`${baseUrl}/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.data.targetRole, 'Senior Cloud Architect');
+    assert.strictEqual(body.data.experienceLevel, 'ADVANCED');
+    assert.deepStrictEqual(body.data.primarySkills, ['Node.js', 'Kubernetes', 'AWS', 'Go']);
+  });
+
+  test('8. POST /api/v1/resumes/upload uploads and parses a text resume', async () => {
+    const sampleResumeContent = `
+Jane Doe
+Email: jane.doe@example.com
+Target Role: Senior Full Stack Engineer
+
+Skills: JavaScript, React, Node.js, Express.js, MongoDB, Docker, AWS, System Design
+
+Experience:
+Senior Software Engineer at Tech Corp (2021 - 2024)
+- Built distributed REST APIs and React frontends.
+
+Education:
+Bachelor of Science in Computer Science, Tech University, 2021
+
+Key Projects:
+Cloud Microservices Architecture
+- Deployed containerized applications with Docker and AWS.
+    `;
+
+    const blob = new Blob([sampleResumeContent], { type: 'text/plain' });
+    const formData = new FormData();
+    formData.append('resume', blob, 'jane_doe_resume.txt');
+
+    const res = await fetch(`${baseUrl}/resumes/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken}`
+      },
+      body: formData
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.data.originalFilename, 'jane_doe_resume.txt');
+    assert.ok(body.data.parsedData.skills.includes('JavaScript'));
+    assert.ok(body.data.parsedData.skills.includes('React'));
+    assert.ok(body.data.parsedData.skills.includes('Node.js'));
+    assert.strictEqual(body.data.isDefault, true);
+  });
+
+  test('9. GET /api/v1/resumes lists uploaded resumes for authenticated user', async () => {
+    const res = await fetch(`${baseUrl}/resumes`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.data.length, 1);
+  });
+
+  test('10. POST /api/v1/auth/refresh-token refreshes access token', async () => {
+    const res = await fetch(`${baseUrl}/auth/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(body.success, true);
+    assert.ok(body.data.accessToken);
+  });
+
+  test('11. POST /api/v1/auth/logout revokes refresh token', async () => {
+    const res = await fetch(`${baseUrl}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ refreshToken })
+    });
+
+    const body = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(body.success, true);
+  });
+});
