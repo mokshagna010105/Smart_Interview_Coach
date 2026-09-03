@@ -68,6 +68,16 @@ const interviewReportSchema = new mongoose.Schema(
       type: [String],
       default: []
     },
+    shareToken: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true
+    },
+    isShared: {
+      type: Boolean,
+      default: false
+    },
     generatedAt: {
       type: Date,
       default: Date.now

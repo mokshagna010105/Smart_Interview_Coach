@@ -5,11 +5,15 @@ import Header from './components/common/Header.jsx';
 import Footer from './components/common/Footer.jsx';
 import ProtectedRoute from './components/common/ProtectedRoute.jsx';
 
-// Pages
+// Public Pages
 import LandingPage from './pages/public/LandingPage.jsx';
 import LoginPage from './pages/auth/LoginPage.jsx';
 import RegisterPage from './pages/auth/RegisterPage.jsx';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage.jsx';
+import SharedReportPage from './pages/public/SharedReportPage.jsx';
+
+// Protected Candidate Pages
 import DashboardPage from './pages/dashboard/DashboardPage.jsx';
 import ProfilePage from './pages/profile/ProfilePage.jsx';
 import ResumePage from './pages/resume/ResumePage.jsx';
@@ -18,6 +22,9 @@ import InterviewRoomPage from './pages/interview/InterviewRoomPage.jsx';
 import InterviewHistoryPage from './pages/interview/InterviewHistoryPage.jsx';
 import InterviewReportPage from './pages/interview/InterviewReportPage.jsx';
 import AnalyticsPage from './pages/analytics/AnalyticsPage.jsx';
+
+// Admin Page
+import AdminDashboardPage from './pages/admin/AdminDashboardPage.jsx';
 
 export const App = () => {
   return (
@@ -31,8 +38,10 @@ export const App = () => {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/report/shared/:shareToken" element={<SharedReportPage />} />
 
-            {/* Protected Routes */}
+            {/* Protected Candidate Routes */}
             <Route
               path="/dashboard"
               element={
@@ -94,6 +103,16 @@ export const App = () => {
               element={
                 <ProtectedRoute>
                   <AnalyticsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Protected Admin Routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requiredRole="ADMIN">
+                  <AdminDashboardPage />
                 </ProtectedRoute>
               }
             />

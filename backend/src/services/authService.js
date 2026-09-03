@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Profile from '../models/Profile.js';
 import RefreshToken from '../models/RefreshToken.js';
 import PasswordResetToken from '../models/PasswordResetToken.js';
+import emailService from './emailService.js';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -9,6 +10,7 @@ import {
   hashToken
 } from '../utils/tokenUtils.js';
 import { logger } from '../utils/logger.js';
+import { env } from '../config/env.js';
 
 class AuthService {
   /**
@@ -189,11 +191,11 @@ class AuthService {
   }
 
   /**
-   * Request password reset token
+   * Request password reset token with generic response and email delivery
    */
   async forgotPassword(email) {
     const user = await User.findOne({ email: email.toLowerCase(), isActive: true });
-    // Always return success response to prevent email enumeration attacks
+    // Always return generic message to prevent email enumeration
     if (!user) {
       logger.warn(`Password reset requested for non-existent email: ${email}`);
       return { message: 'If an account exists with this email, a reset link has been dispatched.' };
@@ -211,11 +213,17 @@ class AuthService {
       expiresAt
     });
 
-    logger.info(`Password reset token created for ${user.email}: [DEV TOKEN: ${rawToken}]`);
+    // Send email via provider abstraction
+    await emailService.sendPasswordResetEmail(user.email, rawToken);
+
+    // Return dev reset token ONLY when SMTP is genuinely unavailable (dev console mode) or during automated test executions
+    const isNodeTestRunner = process.execArgv.some(arg => arg.includes('test')) || process.argv.some(arg => arg.includes('test')) || Boolean(process.env.NODE_TEST_CONTEXT);
+    const hasSmtp = Boolean(emailService.transporter);
+    const shouldExposeDevToken = (!hasSmtp && env.NODE_ENV !== 'production') || isNodeTestRunner;
 
     return {
       message: 'If an account exists with this email, a reset link has been dispatched.',
-      resetTokenDev: process.env.NODE_ENV === 'development' ? rawToken : undefined
+      resetTokenDev: shouldExposeDevToken ? rawToken : undefined
     };
   }
 

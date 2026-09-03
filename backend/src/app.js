@@ -5,12 +5,16 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import rootRouter from './routes/index.js';
+import { apiLimiter } from './middleware/rateLimitMiddleware.js';
 import { notFoundHandler, errorHandler } from './middleware/errorMiddleware.js';
 
 const app = express();
 
 // Security Headers
 app.use(helmet());
+
+// Global Rate Limiter
+app.use(apiLimiter);
 
 // CORS Configuration
 app.use(cors({
@@ -36,7 +40,7 @@ if (env.NODE_ENV !== 'test') {
 // API v1 Routes Mount
 app.use('/api/v1', rootRouter);
 
-// Fallback for root /
+// Root Health / Info Endpoint
 app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to Smart Interview Coach (InterviewAI) API',

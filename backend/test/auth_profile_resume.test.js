@@ -15,7 +15,7 @@ before(async () => {
     await mongoose.connect(uri);
   } catch (err) {
     // If memory server is unavailable, connect to test database URI
-    const fallbackUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/interview_ai_test';
+    const fallbackUri = process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/interview_ai_test_auth';
     await mongoose.connect(fallbackUri);
   }
 

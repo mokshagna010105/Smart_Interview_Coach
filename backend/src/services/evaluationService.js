@@ -30,7 +30,7 @@ class EvaluationService {
   }
 
   /**
-   * Evaluate a single answer
+   * Evaluate a single answer idempotently with duplicate-key race condition handling
    */
   async evaluateAnswer(userId, interviewId, answerId) {
     const interview = await this._getVerifiedInterview(userId, interviewId);
@@ -50,9 +50,10 @@ class EvaluationService {
       throw error;
     }
 
-    // Check if evaluation already exists to avoid redundant evaluations
+    // Fast path: return existing evaluation if already evaluated
     const existingEvaluation = await InterviewEvaluation.findOne({ answerId: answer._id });
     if (existingEvaluation) {
+      logger.info(`Returning cached evaluation for answer ${answer._id} (${existingEvaluation.evaluator})`);
       return existingEvaluation;
     }
 
@@ -77,26 +78,45 @@ class EvaluationService {
       transcriptText: answer.transcriptText
     });
 
-    // Save evaluation document
-    const evaluation = await InterviewEvaluation.create({
-      interviewId: interview._id,
-      questionId: question._id,
-      answerId: answer._id,
-      userId,
-      evaluator: evalResult.evaluator,
-      overallScore: evalResult.overallScore,
-      scores: evalResult.scores,
-      strengths: evalResult.strengths,
-      weaknesses: evalResult.weaknesses,
-      feedback: evalResult.feedback,
-      idealAnswer: evalResult.idealAnswer,
-      fillerWordAnalysis: evalResult.fillerWordAnalysis,
-      grammarIssues: evalResult.grammarIssues,
-      vocabularySuggestions: evalResult.vocabularySuggestions
-    });
+    // Check again before inserting in case a concurrent request finished during AI generation
+    const midEvaluation = await InterviewEvaluation.findOne({ answerId: answer._id });
+    if (midEvaluation) {
+      logger.info(`Evaluation completed concurrently for answer ${answer._id}; returning existing evaluation.`);
+      return midEvaluation;
+    }
 
-    logger.info(`Answer ${answer._id} evaluated with score ${evaluation.overallScore}/100 (${evaluation.evaluator})`);
-    return evaluation;
+    // Save evaluation document with strict duplicate-key protection
+    try {
+      const evaluation = await InterviewEvaluation.create({
+        interviewId: interview._id,
+        questionId: question._id,
+        answerId: answer._id,
+        userId,
+        evaluator: evalResult.evaluator,
+        overallScore: evalResult.overallScore,
+        scores: evalResult.scores,
+        strengths: evalResult.strengths,
+        weaknesses: evalResult.weaknesses,
+        feedback: evalResult.feedback,
+        idealAnswer: evalResult.idealAnswer,
+        fillerWordAnalysis: evalResult.fillerWordAnalysis,
+        grammarIssues: evalResult.grammarIssues,
+        vocabularySuggestions: evalResult.vocabularySuggestions
+      });
+
+      logger.info(`Answer ${answer._id} evaluated with score ${evaluation.overallScore}/100 (${evaluation.evaluator})`);
+      return evaluation;
+    } catch (err) {
+      // Gracefully handle MongoDB E11000 duplicate key error
+      if (err.code === 11000 || (err.name === 'MongoServerError' && err.message?.includes('E11000'))) {
+        logger.info(`Duplicate key race caught for answer ${answer._id}; retrieving existing evaluation.`);
+        const concurrentEvaluation = await InterviewEvaluation.findOne({ answerId: answer._id });
+        if (concurrentEvaluation) {
+          return concurrentEvaluation;
+        }
+      }
+      throw err;
+    }
   }
 
   /**
@@ -115,7 +135,9 @@ class EvaluationService {
     for (const answer of answers) {
       try {
         const evaluation = await this.evaluateAnswer(userId, interview._id, answer._id);
-        evaluations.push(evaluation);
+        if (evaluation) {
+          evaluations.push(evaluation);
+        }
       } catch (err) {
         logger.warn(`Could not evaluate answer ${answer._id}: ${err.message}`);
       }

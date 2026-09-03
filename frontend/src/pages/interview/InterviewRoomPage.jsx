@@ -19,7 +19,11 @@ import {
   Sparkles,
   ArrowRight,
   RefreshCw,
-  Award
+  Award,
+  Video,
+  VideoOff,
+  Volume2,
+  Camera
 } from 'lucide-react';
 
 export const InterviewRoomPage = () => {
@@ -35,6 +39,12 @@ export const InterviewRoomPage = () => {
   const [secondsRemaining, setSecondsRemaining] = useState(null);
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Webcam State
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
 
   // 1. Fetch full interview data
   const {
@@ -70,7 +80,6 @@ export const InterviewRoomPage = () => {
 
   useEffect(() => {
     setQuestionStartTime(Date.now());
-    // Pre-fill answer if already submitted for current question
     if (currentQuestion) {
       const existingAnswer = answers.find(a => a.questionId === currentQuestion._id);
       if (existingAnswer) {
@@ -100,7 +109,75 @@ export const InterviewRoomPage = () => {
     return () => clearInterval(timer);
   }, [interview?.status, secondsRemaining]);
 
-  // 4. Speech Recognition setup
+  // 4. Synchronize video element whenever camera state or stream changes
+  useEffect(() => {
+    if (isCameraOn && videoRef.current && mediaStreamRef.current) {
+      videoRef.current.srcObject = mediaStreamRef.current;
+      videoRef.current.play().catch((err) => {
+        console.warn('Webcam video auto-playback was prevented or interrupted:', err);
+      });
+    }
+  }, [isCameraOn]);
+
+  // 5. Webcam toggle handler
+  const toggleCamera = async () => {
+    if (isCameraOn) {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      setIsCameraOn(false);
+      setCameraError('');
+    } else {
+      setCameraError('');
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Camera access is not supported in this browser.');
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          },
+          audio: false
+        });
+        mediaStreamRef.current = stream;
+        setIsCameraOn(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch((err) => {
+            console.warn('Webcam video auto-playback interrupted:', err);
+          });
+        }
+      } catch (err) {
+        let msg = 'Could not access camera. Please allow camera permissions in your browser.';
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          msg = 'Camera permission was denied in your browser settings.';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          msg = 'No video camera device was detected on your system.';
+        }
+        setCameraError(msg);
+        setIsCameraOn(false);
+      }
+    }
+  };
+
+  // Stop camera & speech on unmount
+  useEffect(() => {
+    return () => {
+      speechService.stop();
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      }
+    };
+  }, []);
+
+  // 6. Speech Recognition setup
   const toggleListening = () => {
     if (isListening) {
       speechService.stop();
@@ -130,14 +207,7 @@ export const InterviewRoomPage = () => {
     }
   };
 
-  // Cleanup speech on unmount
-  useEffect(() => {
-    return () => {
-      speechService.stop();
-    };
-  }, []);
-
-  // 5. Actions: Start, Pause, Resume, Skip, Submit, Finish
+  // 7. Mutations: Start, Pause, Resume, Submit, Skip, Finish
   const startInterviewMutation = useMutation({
     mutationFn: async () => {
       const res = await apiClient.post(`/interviews/${interviewId}/start`);
@@ -212,6 +282,10 @@ export const InterviewRoomPage = () => {
     if (!confirm('Are you ready to complete this mock interview?')) return;
     speechService.stop();
     setIsListening(false);
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
 
     try {
       await apiClient.post(`/interviews/${interviewId}/complete`);
@@ -245,7 +319,7 @@ export const InterviewRoomPage = () => {
       <div className="max-w-md mx-auto my-16 p-8 rounded-3xl border border-red-200 bg-red-50 text-center dark:border-red-900 dark:bg-red-950/30">
         <AlertCircle className="mx-auto h-10 w-10 text-red-600 mb-3" />
         <h2 className="text-base font-bold text-red-900 dark:text-red-200">Unable to load interview</h2>
-        <p className="text-xs text-red-700 dark:text-red-400 mt-1">{error?.message || 'Session not found or forbidden.'}</p>
+        <p className="text-xs text-red-700 dark:text-red-400">{error?.message || 'Session not found or forbidden.'}</p>
         <Link
           to="/dashboard"
           className="mt-4 inline-block rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white"
@@ -350,7 +424,7 @@ export const InterviewRoomPage = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400 font-medium">Input Options:</span>
-              <span className="font-semibold text-slate-700 dark:text-slate-200">Voice (Speech-to-Text) or Text Keyboard</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">Voice (Speech-to-Text), Keyboard Text, and Optional Webcam</span>
             </div>
           </div>
 
@@ -384,6 +458,26 @@ export const InterviewRoomPage = () => {
         </div>
 
         <div className="flex items-center space-x-4">
+          {/* Webcam Toggle Button */}
+          <button
+            onClick={toggleCamera}
+            className={`inline-flex items-center rounded-xl px-3 py-1.5 text-xs font-bold transition border ${
+              isCameraOn
+                ? 'bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-950 dark:text-brand-300 dark:border-brand-900'
+                : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+            }`}
+          >
+            {isCameraOn ? (
+              <>
+                <VideoOff className="mr-1.5 h-3.5 w-3.5 text-red-500" /> Camera On
+              </>
+            ) : (
+              <>
+                <Video className="mr-1.5 h-3.5 w-3.5" /> Enable Camera
+              </>
+            )}
+          </button>
+
           {/* Countdown Clock */}
           <div className={`flex items-center space-x-2 rounded-xl px-3 py-1.5 text-xs font-bold border ${
             (secondsRemaining || 0) < 300
@@ -438,36 +532,86 @@ export const InterviewRoomPage = () => {
         </div>
       )}
 
-      {/* Question Card */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {currentQuestion?.category || 'General'}
-          </span>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            {currentQuestion?.difficulty || interview.difficulty}
-          </span>
+      {cameraError && (
+        <div className="flex items-center space-x-2 rounded-2xl bg-amber-50 p-4 border border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-300 text-xs">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{cameraError}</span>
+        </div>
+      )}
+
+      {/* Main Grid: Question & Video Tile */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Question Card (Left 2 cols) */}
+        <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              {currentQuestion?.category || 'General'}
+            </span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {currentQuestion?.difficulty || interview.difficulty}
+            </span>
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug">
+            {currentQuestion?.questionText}
+          </h2>
+
+          {currentQuestion?.expectedTopics?.length > 0 && (
+            <div className="pt-2">
+              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Key concepts to consider:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {currentQuestion.expectedTopics.map((topic, i) => (
+                  <span
+                    key={i}
+                    className="rounded-md bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800/80 dark:text-slate-400 border border-slate-100 dark:border-slate-800"
+                  >
+                    {topic}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-snug">
-          {currentQuestion?.questionText}
-        </h2>
+        {/* Live Camera Video Tile (Right 1 col) */}
+        <div className="rounded-3xl border border-slate-200 bg-slate-900 p-4 shadow-sm dark:border-slate-800 flex flex-col justify-center items-center overflow-hidden relative min-h-[240px]">
+          {/* Always rendered video element with mirror transform */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`w-full h-full object-cover rounded-2xl transform -scale-x-100 transition-opacity duration-300 ${
+              isCameraOn ? 'block opacity-100' : 'hidden opacity-0'
+            }`}
+          />
 
-        {currentQuestion?.expectedTopics?.length > 0 && (
-          <div className="pt-2">
-            <span className="text-[11px] font-semibold text-slate-400 block mb-1">Key concepts to consider:</span>
-            <div className="flex flex-wrap gap-1.5">
-              {currentQuestion.expectedTopics.map((topic, i) => (
-                <span
-                  key={i}
-                  className="rounded-md bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800/80 dark:text-slate-400 border border-slate-100 dark:border-slate-800"
-                >
-                  {topic}
-                </span>
-              ))}
+          {/* Placeholder state when camera is disabled */}
+          {!isCameraOn && (
+            <div className="flex flex-col items-center justify-center text-center space-y-3 py-6 my-auto">
+              <div className="h-12 w-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                <Camera className="h-6 w-6" />
+              </div>
+              <p className="text-xs text-slate-400 max-w-[180px]">
+                Camera preview is off. Click below to enable video.
+              </p>
+              <button
+                onClick={toggleCamera}
+                className="inline-flex items-center rounded-xl bg-brand-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-brand-700 transition"
+              >
+                <Video className="mr-1.5 h-3.5 w-3.5" /> Start Camera
+              </button>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Live Indicator overlay badge */}
+          {isCameraOn && (
+            <div className="absolute bottom-6 left-6 flex items-center space-x-1.5 bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-semibold text-white pointer-events-none">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Camera Active</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Answer Workspace */}
@@ -543,7 +687,7 @@ export const InterviewRoomPage = () => {
           </div>
         )}
 
-        {/* Answer Text Area (Editable in both Speech and Text modes) */}
+        {/* Answer Text Area */}
         <textarea
           rows={6}
           value={answerText}

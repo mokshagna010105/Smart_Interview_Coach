@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import apiClient from '../../api/apiClient.js';
 import { KeyRound, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -11,10 +11,20 @@ const forgotSchema = z.object({
 });
 
 export const ForgotPasswordPage = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const token = searchParams.get('token');
+
   const [isSuccess, setIsSuccess] = useState(false);
   const [serverError, setServerError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [devToken, setDevToken] = useState('');
+
+  // If a reset token is present in the URL query string, redirect to the reset password form
+  useEffect(() => {
+    if (token) {
+      navigate(`/reset-password?token=${encodeURIComponent(token)}`, { replace: true });
+    }
+  }, [token, navigate]);
 
   const {
     register,
@@ -28,11 +38,8 @@ export const ForgotPasswordPage = () => {
     setServerError('');
     setIsSubmitting(true);
     try {
-      const res = await apiClient.post('/auth/forgot-password', data);
+      await apiClient.post('/auth/forgot-password', data);
       setIsSuccess(true);
-      if (res.data?.resetTokenDev) {
-        setDevToken(res.data.resetTokenDev);
-      }
     } catch (err) {
       setServerError(err.message || 'Unable to process request.');
     } finally {
@@ -51,7 +58,7 @@ export const ForgotPasswordPage = () => {
             Reset Password
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Enter your email to receive a password reset token
+            Enter your email to receive a password reset link
           </p>
         </div>
 
@@ -59,19 +66,11 @@ export const ForgotPasswordPage = () => {
           <div className="space-y-4 text-center rounded-2xl bg-emerald-50 p-6 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50">
             <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-              Reset Instructions Dispatched
+              Reset Instructions Sent
             </h3>
             <p className="text-xs text-emerald-700 dark:text-emerald-300">
               If an account exists with this email address, you will receive password recovery instructions shortly.
             </p>
-            {devToken && (
-              <div className="mt-3 rounded-lg bg-emerald-100 p-2 text-left dark:bg-emerald-900/60">
-                <span className="block text-[10px] font-bold uppercase text-emerald-800 dark:text-emerald-200">
-                  Dev Environment Token:
-                </span>
-                <code className="text-xs break-all text-emerald-900 dark:text-emerald-100">{devToken}</code>
-              </div>
-            )}
             <div className="pt-2">
               <Link
                 to="/login"
@@ -114,7 +113,7 @@ export const ForgotPasswordPage = () => {
               disabled={isSubmitting}
               className="flex w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-brand-500/25 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/40 disabled:opacity-50 transition"
             >
-              {isSubmitting ? 'Dispatching...' : 'Send Recovery Token'}
+              {isSubmitting ? 'Dispatching...' : 'Send Recovery Link'}
             </button>
 
             <div className="text-center pt-2">

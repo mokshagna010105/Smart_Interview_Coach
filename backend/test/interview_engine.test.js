@@ -15,7 +15,7 @@ before(async () => {
     const uri = mongoServer.getUri();
     await mongoose.connect(uri);
   } catch (err) {
-    const fallbackUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/interview_ai_test';
+    const fallbackUri = process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/interview_ai_test_engine';
     await mongoose.connect(fallbackUri);
   }
 

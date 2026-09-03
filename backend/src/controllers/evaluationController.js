@@ -30,13 +30,52 @@ class EvaluationController {
   }
 
   /**
-   * Get post-interview report
+   * Get post-interview report (Private authenticated)
    */
   async getReport(req, res, next) {
     try {
       const { interviewId } = req.params;
       const reportData = await reportService.generateOrGetReport(req.user.userId, interviewId);
       return sendSuccess(res, reportData, 'Interview report retrieved successfully', 200);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Generate or retrieve public share token
+   */
+  async generateShareToken(req, res, next) {
+    try {
+      const { interviewId } = req.params;
+      const shareData = await reportService.generateShareToken(req.user.userId, interviewId);
+      return sendSuccess(res, shareData, 'Share token generated successfully', 200);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Revoke public share access
+   */
+  async revokeShareToken(req, res, next) {
+    try {
+      const { interviewId } = req.params;
+      const result = await reportService.revokeShareToken(req.user.userId, interviewId);
+      return sendSuccess(res, result, 'Report sharing access revoked', 200);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get public shared report by token (No auth required)
+   */
+  async getPublicSharedReport(req, res, next) {
+    try {
+      const { shareToken } = req.params;
+      const sharedReport = await reportService.getPublicSharedReport(shareToken);
+      return sendSuccess(res, sharedReport, 'Shared interview report retrieved successfully', 200);
     } catch (error) {
       next(error);
     }

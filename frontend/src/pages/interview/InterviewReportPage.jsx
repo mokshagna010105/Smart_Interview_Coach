@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import apiClient from '../../api/apiClient.js';
 import {
   Award,
@@ -19,12 +19,19 @@ import {
   Lightbulb,
   Check,
   RefreshCw,
-  Plus
+  Plus,
+  Share2,
+  Printer,
+  Copy,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 
 export const InterviewReportPage = () => {
   const { interviewId } = useParams();
   const [expandedQuestionId, setExpandedQuestionId] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['interviewReport', interviewId],
@@ -33,6 +40,22 @@ export const InterviewReportPage = () => {
       return res.data;
     },
     refetchOnWindowFocus: false
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(`/interviews/${interviewId}/report/share`);
+      return res.data;
+    },
+    onSuccess: () => refetch()
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.delete(`/interviews/${interviewId}/report/share`);
+      return res.data;
+    },
+    onSuccess: () => refetch()
   });
 
   if (isLoading) {
@@ -65,6 +88,18 @@ export const InterviewReportPage = () => {
   const { report, interview, questionBreakdown = [] } = data;
   const dimensionScores = report.dimensionScores || {};
 
+  const shareUrl = report.shareToken
+    ? `${window.location.origin}/report/shared/${report.shareToken}`
+    : '';
+
+  const copyToClipboard = () => {
+    if (shareUrl) {
+      navigator.clipboard.writeText(shareUrl);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2500);
+    }
+  };
+
   const getScoreColor = (score) => {
     if (score >= 80) return 'text-emerald-600 dark:text-emerald-400';
     if (score >= 65) return 'text-amber-600 dark:text-amber-400';
@@ -78,9 +113,9 @@ export const InterviewReportPage = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      {/* Navigation & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 print:py-0 print:px-0">
+      {/* Navigation & Actions Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <div className="space-y-1">
           <Link
             to="/interview/history"
@@ -96,21 +131,106 @@ export const InterviewReportPage = () => {
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition"
+          >
+            <Printer className="mr-1.5 h-3.5 w-3.5" /> Print / Export PDF
+          </button>
+
+          <button
+            onClick={() => {
+              if (!report.isShared) {
+                shareMutation.mutate();
+              }
+              setShowShareModal(true);
+            }}
+            className="inline-flex items-center rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2 text-xs font-bold text-brand-700 hover:bg-brand-100 dark:border-brand-900 dark:bg-brand-950 dark:text-brand-300 transition"
+          >
+            <Share2 className="mr-1.5 h-3.5 w-3.5" /> Share Report
+          </button>
+
           <Link
             to="/interview/setup"
-            className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-brand-700 transition"
+            className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-brand-700 transition"
           >
-            <Plus className="mr-1.5 h-4 w-4" /> Practice Another
-          </Link>
-          <Link
-            to="/analytics"
-            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition"
-          >
-            <BarChart3 className="mr-1.5 h-4 w-4 text-brand-600" /> View Analytics
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> Practice Another
           </Link>
         </div>
       </div>
+
+      {/* Share Modal Dialog */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 space-y-4 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="h-8 w-8 rounded-xl bg-brand-50 dark:bg-brand-950 flex items-center justify-center text-brand-600">
+                  <Share2 className="h-4 w-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Shareable Report Link</h3>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Anyone with this verified link can view your read-only interview scorecard and question evaluations without seeing private account information.
+            </p>
+
+            {report.isShared ? (
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs dark:border-slate-800 dark:bg-slate-950">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl}
+                    className="flex-1 bg-transparent text-slate-700 dark:text-slate-300 outline-none truncate font-mono text-[11px]"
+                  />
+                  <button
+                    onClick={copyToClipboard}
+                    className="inline-flex items-center rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-brand-700"
+                  >
+                    {copySuccess ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+                {copySuccess && (
+                  <span className="text-[11px] text-emerald-600 font-semibold block">
+                    Link copied to clipboard!
+                  </span>
+                )}
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[11px] text-slate-400">Sharing is currently Active</span>
+                  <button
+                    onClick={() => revokeMutation.mutate()}
+                    disabled={revokeMutation.isPending}
+                    className="text-xs font-bold text-red-600 hover:text-red-700"
+                  >
+                    Revoke Share Link
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 space-y-3">
+                <p className="text-xs text-slate-400">Public sharing is currently disabled for this report.</p>
+                <button
+                  onClick={() => shareMutation.mutate()}
+                  disabled={shareMutation.isPending}
+                  className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700"
+                >
+                  Enable Public Link
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Top Hero Score Card */}
       <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -195,7 +315,6 @@ export const InterviewReportPage = () => {
 
       {/* Executive Summary & Key Insights */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Strengths & Weaknesses */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center">
             <Award className="mr-2 h-4 w-4 text-brand-600" /> Key Strengths & Growth Areas
@@ -242,7 +361,6 @@ export const InterviewReportPage = () => {
           </div>
         </div>
 
-        {/* Actionable Feedback */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center">
             <Lightbulb className="mr-2 h-4 w-4 text-amber-500" /> Actionable Recommendations
@@ -278,7 +396,6 @@ export const InterviewReportPage = () => {
                 key={item.questionId}
                 className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm dark:border-slate-800 dark:bg-slate-900 transition"
               >
-                {/* Accordion Header */}
                 <div
                   onClick={() => setExpandedQuestionId(isExpanded ? null : item.questionId)}
                   className="flex items-start justify-between p-6 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition gap-4"
@@ -323,10 +440,8 @@ export const InterviewReportPage = () => {
                   </div>
                 </div>
 
-                {/* Expanded Details Panel */}
                 {isExpanded && (
                   <div className="px-6 pb-6 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-5 bg-slate-50/30 dark:bg-slate-950/20">
-                    {/* Candidate's Response */}
                     <div className="rounded-2xl bg-white p-4 border border-slate-200 dark:border-slate-800 dark:bg-slate-900 space-y-1">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
                         Your Transcript Response
@@ -338,10 +453,8 @@ export const InterviewReportPage = () => {
                       </p>
                     </div>
 
-                    {/* Evaluation Details */}
                     {evalData && (
                       <div className="space-y-4">
-                        {/* Rubrics row */}
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
                           <div className="rounded-xl bg-white p-2.5 border border-slate-200 dark:border-slate-800 dark:bg-slate-900">
                             <span className="text-[10px] text-slate-400 block font-medium">Relevance</span>
@@ -365,7 +478,6 @@ export const InterviewReportPage = () => {
                           </div>
                         </div>
 
-                        {/* Strengths and Feedback */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="rounded-2xl bg-white p-4 border border-slate-200 dark:border-slate-800 dark:bg-slate-900 space-y-2">
                             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
@@ -396,7 +508,6 @@ export const InterviewReportPage = () => {
                           </div>
                         </div>
 
-                        {/* Ideal Sample Answer */}
                         {evalData.idealAnswer && (
                           <div className="rounded-2xl bg-brand-50/50 p-4 border border-brand-100 dark:bg-brand-950/20 dark:border-brand-900/50 space-y-1">
                             <span className="text-[11px] font-bold text-brand-700 dark:text-brand-300 uppercase tracking-wider block">

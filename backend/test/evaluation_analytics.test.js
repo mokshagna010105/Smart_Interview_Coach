@@ -2,6 +2,7 @@ import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
+import InterviewEvaluation from '../src/models/InterviewEvaluation.js';
 import { detectFillerWords } from '../src/utils/fillerWordDetector.js';
 
 let mongoServer;
@@ -15,7 +16,7 @@ before(async () => {
     const uri = mongoServer.getUri();
     await mongoose.connect(uri);
   } catch (err) {
-    const fallbackUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/interview_ai_test';
+    const fallbackUri = process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/interview_ai_test_eval';
     await mongoose.connect(fallbackUri);
   }
 
@@ -181,7 +182,7 @@ describe('Block 3: AI Answer Evaluation, Reports & Analytics Tests', () => {
     assert.strictEqual(body.error.code, 'VALIDATION_ERROR');
   });
 
-  test('5. Duplicate evaluation request returns cached evaluation document', async () => {
+  test('5. Duplicate evaluation request returns cached evaluation document idempotently without E11000', async () => {
     const res = await fetch(`${baseUrl}/interviews/${interviewId}/answers/${answerId1}/evaluate`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${userTokenA}` }
@@ -190,9 +191,40 @@ describe('Block 3: AI Answer Evaluation, Reports & Analytics Tests', () => {
     const body = await res.json();
     assert.strictEqual(res.status, 200);
     assert.strictEqual(body.success, true);
+
+    // Verify exactly ONE InterviewEvaluation document exists in MongoDB for this answerId
+    const docCount = await InterviewEvaluation.countDocuments({ answerId: answerId1 });
+    assert.strictEqual(docCount, 1);
   });
 
-  test('6. POST /api/v1/interviews/:id/evaluate-all evaluates all answered questions', async () => {
+  test('6. Concurrent evaluation requests for same answer succeed with 200 without duplicate key error', async () => {
+    const requests = [
+      fetch(`${baseUrl}/interviews/${interviewId}/answers/${answerId1}/evaluate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${userTokenA}` }
+      }),
+      fetch(`${baseUrl}/interviews/${interviewId}/answers/${answerId1}/evaluate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${userTokenA}` }
+      }),
+      fetch(`${baseUrl}/interviews/${interviewId}/answers/${answerId1}/evaluate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${userTokenA}` }
+      })
+    ];
+
+    const responses = await Promise.all(requests);
+    for (const res of responses) {
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.success, true);
+    }
+
+    const docCount = await InterviewEvaluation.countDocuments({ answerId: answerId1 });
+    assert.strictEqual(docCount, 1);
+  });
+
+  test('7. POST /api/v1/interviews/:id/evaluate-all evaluates all answered questions', async () => {
     const res = await fetch(`${baseUrl}/interviews/${interviewId}/evaluate-all`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${userTokenA}` }
@@ -204,7 +236,7 @@ describe('Block 3: AI Answer Evaluation, Reports & Analytics Tests', () => {
     assert.ok(Array.isArray(body.data));
   });
 
-  test('7. GET /api/v1/interviews/:id/report returns comprehensive scorecard and question breakdown', async () => {
+  test('8. GET /api/v1/interviews/:id/report returns comprehensive scorecard and question breakdown', async () => {
     const res = await fetch(`${baseUrl}/interviews/${interviewId}/report`, {
       headers: { Authorization: `Bearer ${userTokenA}` }
     });
@@ -221,7 +253,7 @@ describe('Block 3: AI Answer Evaluation, Reports & Analytics Tests', () => {
     assert.ok(body.data.questionBreakdown[1].answer.isSkipped === true);
   });
 
-  test('8. Candidate B cannot access Candidate A report (403 Forbidden)', async () => {
+  test('9. Candidate B cannot access Candidate A report (403 Forbidden)', async () => {
     const res = await fetch(`${baseUrl}/interviews/${interviewId}/report`, {
       headers: { Authorization: `Bearer ${userTokenB}` }
     });
@@ -231,7 +263,7 @@ describe('Block 3: AI Answer Evaluation, Reports & Analytics Tests', () => {
     assert.strictEqual(body.success, false);
   });
 
-  test('9. GET /api/v1/analytics returns real aggregated historical metrics for user with interviews', async () => {
+  test('10. GET /api/v1/analytics returns real aggregated historical metrics for user with interviews', async () => {
     const res = await fetch(`${baseUrl}/analytics`, {
       headers: { Authorization: `Bearer ${userTokenA}` }
     });
@@ -247,7 +279,7 @@ describe('Block 3: AI Answer Evaluation, Reports & Analytics Tests', () => {
     assert.strictEqual(body.data.questionsMetrics.totalSkipped, 1);
   });
 
-  test('10. GET /api/v1/analytics returns clean empty state for Candidate B (no completed interviews)', async () => {
+  test('11. GET /api/v1/analytics returns clean empty state for Candidate B (no completed interviews)', async () => {
     const res = await fetch(`${baseUrl}/analytics`, {
       headers: { Authorization: `Bearer ${userTokenB}` }
     });

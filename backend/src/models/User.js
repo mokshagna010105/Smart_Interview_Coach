@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema(
     passwordHash: {
       type: String,
       required: [true, 'Password is required'],
-      select: false // Never return password in queries unless explicitly requested
+      select: false
     },
     role: {
       type: String,
@@ -35,6 +35,15 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
       default: null
+    },
+    passwordResetTokenHash: {
+      type: String,
+      select: false,
+      index: true
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false
     }
   },
   {
@@ -42,6 +51,7 @@ const userSchema = new mongoose.Schema(
     toJSON: {
       transform: (doc, ret) => {
         delete ret.passwordHash;
+        delete ret.passwordResetTokenHash;
         delete ret.__v;
         return ret;
       }

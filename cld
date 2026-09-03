@@ -1,0 +1,51 @@
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/app.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/config/env.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/controllers/evaluationController.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/models/InterviewReport.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/models/User.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/routes/index.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/routes/interviewRoutes.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/services/authService.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/services/evaluationService.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/services/reportService.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/test/auth_profile_resume.test.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/test/evaluation_analytics.test.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/test/interview_engine.test.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/App.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/common/Footer.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/common/Header.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/auth/ForgotPasswordPage.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/interview/InterviewReportPage.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/interview/InterviewRoomPage.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/public/LandingPage.jsx', LF will be replaced by CRLF the next time Git touches it
+ README.md                                          | 182 [32m++++++++[m[31m--[m
+ backend/.env.example                               |  26 [32m+[m[31m-[m
+ backend/package-lock.json                          |  62 [32m++++[m
+ backend/package.json                               |   4 [32m+[m[31m-[m
+ backend/src/app.js                                 |   6 [32m+[m[31m-[m
+ backend/src/config/env.js                          |  20 [32m+[m[31m-[m
+ backend/src/controllers/evaluationController.js    |  41 [32m++[m[31m-[m
+ backend/src/models/InterviewReport.js              |  10 [32m+[m
+ backend/src/models/User.js                         |  12 [32m+[m[31m-[m
+ backend/src/routes/index.js                        |   4 [32m+[m
+ backend/src/routes/interviewRoutes.js              |   9 [32m+[m[31m-[m
+ backend/src/services/authService.js                |  16 [32m+[m[31m-[m
+ backend/src/services/evaluationService.js          |  66 [32m++[m[31m--[m
+ backend/src/services/reportService.js              | 131 [32m++++++[m[31m-[m
+ backend/test/auth_profile_resume.test.js           |   2 [32m+[m[31m-[m
+ backend/test/evaluation_analytics.test.js          |  46 [32m++[m[31m-[m
+ backend/test/interview_engine.test.js              |   2 [32m+[m[31m-[m
+ frontend/.env.example                              |   5 [32m+[m[31m-[m
+ frontend/src/App.jsx                               |  23 [32m+[m[31m-[m
+ frontend/src/components/common/Footer.jsx          |  44 [32m++[m[31m-[m
+ frontend/src/components/common/Header.jsx          | 167 [32m+++++[m[31m----[m
+ frontend/src/pages/auth/ForgotPasswordPage.jsx     |  35 [32m+[m[31m-[m
+ .../src/pages/interview/InterviewReportPage.jsx    | 157 [32m+++++++[m[31m--[m
+ frontend/src/pages/interview/InterviewRoomPage.jsx | 226 [32m+++++++++[m[31m---[m
+ frontend/src/pages/public/LandingPage.jsx          | 379 [32m++++++++++++++++[m[31m-----[m
+ 25 files changed, 1341 insertions(+), 334 deletions(-)

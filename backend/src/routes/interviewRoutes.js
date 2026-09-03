@@ -11,7 +11,10 @@ import {
 
 const router = Router();
 
-// All interview endpoints require authentication
+// 1. Public Read-Only Endpoint for Shared Reports (No auth required)
+router.get('/shared/:shareToken', evaluationController.getPublicSharedReport);
+
+// 2. All subsequent interview endpoints require authentication
 router.use(requireAuth);
 
 // Core Lifecycle
@@ -33,5 +36,9 @@ router.post('/:interviewId/abandon', interviewController.abandonInterview);
 router.post('/:interviewId/answers/:answerId/evaluate', evaluationController.evaluateAnswer);
 router.post('/:interviewId/evaluate-all', evaluationController.evaluateAll);
 router.get('/:interviewId/report', evaluationController.getReport);
+
+// Shareable Reports Endpoints
+router.post('/:interviewId/report/share', evaluationController.generateShareToken);
+router.delete('/:interviewId/report/share', evaluationController.revokeShareToken);
 
 export default router;
